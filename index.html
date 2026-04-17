@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Real-Time RSI Market Scanner</title>
+    <style>
+        /* Mobile-Native Performance Tweaks */
+        html, body {
+            margin: 0;
+            padding: 0;
+            background-color: #131722;
+            color: #d1d4dc;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            /* Prevents the 'pull-to-refresh' bounce effect in Apple/Android WebView */
+            overscroll-behavior-y: none; 
+            /* Removes the grey highlight box when tapping on mobile */
+            -webkit-tap-highlight-color: transparent;
+            /* Smoother scrolling */
+            -webkit-overflow-scrolling: touch;
+        }
+
+        body {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 25px;
+        }
+        h1 { color: #2962ff; margin: 0; font-size: 1.5rem; }
+        p { color: #787b86; margin: 5px 0 0; font-size: 0.9rem; }
+        
+        /* Layout Grid */
+        .scanner-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 15px;
+            width: 100%;
+            max-width: 1200px;
+        }
+
+        .widget-container {
+            background: #1e222d;
+            padding: 15px;
+            border-radius: 12px;
+            border: 1px solid #2a2e39;
+            margin-bottom: 20px;
+            box-sizing: border-box;
+            width: 100%;
+        }
+
+        .label {
+            font-size: 1rem;
+            font-weight: bold;
+            margin-bottom: 15px;
+            display: block;
+            text-align: center;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .oversold-text { color: #089981; }
+        .overbought-text { color: #f23645; }
+
+        /* App-Style Search Box */
+        .search-box {
+            display: flex;
+            justify-content: center;
+            gap: 8px;
+            margin-bottom: 20px;
+        }
+        input {
+            padding: 12px;
+            border-radius: 8px;
+            border: 1px solid #363c4e;
+            background: #131722;
+            color: white;
+            flex: 1;
+            max-width: 250px;
+            text-transform: uppercase;
+            font-size: 16px; /* Prevents iOS auto-zoom on focus */
+        }
+        button {
+            padding: 12px 20px;
+            background: #2962ff;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: background 0.2s;
+        }
+        button:active { background: #1e4bd8; transform: scale(0.98); }
+        
+        .viewport {
+            width: 100%;
+            min-height: 450px;
+            background: #1e222d;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        hr { border: 0; border-top: 1px solid #2a2e39; margin: 30px 0; }
+    </style>
+</head>
+<body>
+
+<header>
+    <h1>Ronald's Beta Stock Scanner</h1>
+    <p>Live Market Sentiment & Analyst Targets</p>
+</header>
+
+<div class="scanner-grid">
+    <div class="widget-container">
+        <span class="label oversold-text">Oversold (RSI < 30)</span>
+        <div class="tradingview-widget-container">
+            <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-screener.js" async>
+            {
+                "width": "100%", "height": 450, "defaultColumn": "overview",
+                "defaultScreen": "oversold", "market": "america",
+                "showToolbar": true, "colorTheme": "dark", "locale": "en"
+            }
+            </script>
+        </div>
+    </div>
+
+    <div class="widget-container">
+        <span class="label overbought-text">Overbought (RSI > 70)</span>
+        <div class="tradingview-widget-container">
+            <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-screener.js" async>
+            {
+                "width": "100%", "height": 450, "defaultColumn": "overview",
+                "defaultScreen": "overbought", "market": "america",
+                "showToolbar": true, "colorTheme": "dark", "locale": "en"
+            }
+            </script>
+        </div>
+    </div>
+</div>
+
+<div class="widget-container" style="max-width: 1200px;">
+    <div class="search-box">
+        <input type="text" id="symbolSearch" placeholder="Search (e.g. NVDA)">
+        <button onclick="changeSymbol()">Analyze</button>
+    </div>
+
+    <span class="label">1. Technicals & Support Levels</span>
+    <div id="analysis-viewport" class="viewport"></div>
+
+    <hr>
+
+    <span class="label">2. 12-Month Price Prediction</span>
+    <div id="prediction-viewport" class="viewport"></div>
+</div>
+
+<script>
+    function changeSymbol() {
+        const input = document.getElementById('symbolSearch');
+        const symbol = input.value.trim().toUpperCase() || "NASDAQ:AAPL";
+        
+        // Update Technical Analysis Widget
+        const analysisViewport = document.getElementById('analysis-viewport');
+        analysisViewport.innerHTML = '';
+        const analysisScript = document.createElement('script');
+        analysisScript.src = 'https://s3.tradingview.com/external-embedding/embed-widget-technical-analysis.js';
+        analysisScript.async = true;
+        analysisScript.innerHTML = JSON.stringify({
+            "interval": "1D", "width": "100%", "height": 450,
+            "symbol": symbol, "showIntervalTabs": true,
+            "displayMode": "multiple", "locale": "en", "colorTheme": "dark"
+        });
+        analysisViewport.appendChild(analysisScript);
+
+        // Update Prediction Widget (Symbol Profile)
+        const predictionViewport = document.getElementById('prediction-viewport');
+        predictionViewport.innerHTML = '';
+        const predictionScript = document.createElement('script');
+        predictionScript.src = 'https://s3.tradingview.com/external-embedding/embed-widget-symbol-profile.js';
+        predictionScript.async = true;
+        predictionScript.innerHTML = JSON.stringify({
+            "width": "100%", "height": 450, "colorTheme": "dark",
+            "symbol": symbol, "locale": "en"
+        });
+        predictionViewport.appendChild(predictionScript);
+    }
+
+    // Load initial data
+    window.onload = changeSymbol;
+</script>
+
+</body>
+</html>

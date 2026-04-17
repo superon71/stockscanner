@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Ronald's Stock Scanner</title>
+    <style>
+        /* Mobile-Native Performance & UI Tweaks */
+        html, body {
+            margin: 0;
+            padding: 0;
+            background-color: #131722;
+            color: #d1d4dc;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            overscroll-behavior-y: none; 
+            -webkit-tap-highlight-color: transparent;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        body {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            /* safe-area-inset adds padding for the notch and home bar */
+            padding: calc(env(safe-area-inset-top) + 10px) 15px calc(env(safe-area-inset-bottom) + 20px) 15px;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 20px;
+            width: 100%;
+        }
+        h1 { color: #2962ff; margin: 0; font-size: 1.3rem; font-weight: 800; }
+        p { color: #787b86; margin: 3px 0 0; font-size: 0.85rem; }
+        
+        .scanner-grid {
+            display: grid;
+            grid-template-columns: 1fr; /* Stacked by default for mobile */
+            gap: 15px;
+            width: 100%;
+            max-width: 1200px;
+        }
+
+        /* Responsive grid for tablets/desktop */
+        @media (min-width: 768px) {
+            .scanner-grid { grid-template-columns: 1fr 1fr; }
+        }
+
+        .widget-container {
+            background: #1e222d;
+            padding: 12px;
+            border-radius: 16px; /* Rounder corners for app feel */
+            border: 1px solid #2a2e39;
+            margin-bottom: 15px;
+            box-sizing: border-box;
+            width: 100%;
+        }
+
+        .label {
+            font-size: 0.85rem;
+            font-weight: 700;
+            margin-bottom: 12px;
+            display: block;
+            text-align: center;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: #b2b5be;
+        }
+
+        .oversold-text { color: #089981; }
+        .overbought-text { color: #f23645; }
+
+        /* Search Box Optimization */
+        .search-box {
+            display: flex;
+            flex-direction: row; /* Keep search and button side-by-side */
+            gap: 10px;
+            margin-bottom: 15px;
+            width: 100%;
+        }
+        
+        input {
+            padding: 14px;
+            border-radius: 10px;
+            border: 1px solid #363c4e;
+            background: #131722;
+            color: white;
+            flex: 2;
+            text-transform: uppercase;
+            font-size: 16px; /* Prevents auto-zoom on iOS */
+            outline: none;
+        }
+        
+        input:focus { border-color: #2962ff; }
+
+        button {
+            padding: 14px;
+            background: #2962ff;
+            color: white;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            font-weight: 700;
+            flex: 1;
+            font-size: 0.9rem;
+        }
+        
+        button:active { background: #1e4bd8; transform: scale(0.97); }
+        
+        .viewport {
+            width: 100%;
+            min-height: 480px;
+            background: #1e222d;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+
+        hr { border: 0; border-top: 1px solid #2a2e39; margin: 25px 0; }
+        
+        /* Utility class to hide scrollbars on containers if needed */
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+    </style>
+</head>
+<body>
+
+<header>
+    <h1>Ronald's Beta Scanner</h1>
+    <p>Live Sentiment & Analyst Targets</p>
+</header>
+
+<div class="scanner-grid">
+    <div class="widget-container">
+        <span class="label oversold-text">Oversold (RSI < 30)</span>
+        <div class="tradingview-widget-container">
+            <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-screener.js" async>
+            {
+                "width": "100%", "height": 450, "defaultColumn": "overview",
+                "defaultScreen": "oversold", "market": "america",
+                "showToolbar": false, "colorTheme": "dark", "locale": "en"
+            }
+            </script>
+        </div>
+    </div>
+
+    <div class="widget-container">
+        <span class="label overbought-text">Overbought (RSI > 70)</span>
+        <div class="tradingview-widget-container">
+            <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-screener.js" async>
+            {
+                "width": "100%", "height": 450, "defaultColumn": "overview",
+                "defaultScreen": "overbought", "market": "america",
+                "showToolbar": false, "colorTheme": "dark", "locale": "en"
+            }
+            </script>
+        </div>
+    </div>
+</div>
+
+<div class="widget-container" style="max-width: 1200px;">
+    <div class="search-box">
+        <input type="text" id="symbolSearch" placeholder="Symbol (e.g. NVDA)" autocomplete="off">
+        <button onclick="changeSymbol()">Analyze</button>
+    </div>
+
+    <span class="label">Technicals & Support</span>
+    <div id="analysis-viewport" class="viewport"></div>
+
+    <hr>
+
+    <span class="label">12-Month Forecast</span>
+    <div id="prediction-viewport" class="viewport"></div>
+</div>
+
+<script>
+    function changeSymbol() {
+        const input = document.getElementById('symbolSearch');
+        const symbol = input.value.trim().toUpperCase() || "NASDAQ:AAPL";
+        
+        // Update Technical Analysis Widget
+        const analysisViewport = document.getElementById('analysis-viewport');
+        analysisViewport.innerHTML = '';
+        const analysisScript = document.createElement('script');
+        analysisScript.src = 'https://s3.tradingview.com/external-embedding/embed-widget-technical-analysis.js';
+        analysisScript.async = true;
+        analysisScript.innerHTML = JSON.stringify({
+            "interval": "1D", "width": "100%", "height": 450,
+            "symbol": symbol, "showIntervalTabs": true,
+            "displayMode": "multiple", "locale": "en", "colorTheme": "dark"
+        });
+        analysisViewport.appendChild(analysisScript);
+
+        // Update Prediction Widget (Symbol Profile)
+        const predictionViewport = document.getElementById('prediction-viewport');
+        predictionViewport.innerHTML = '';
+        const predictionScript = document.createElement('script');
+        predictionScript.src = 'https://s3.tradingview.com/external-embedding/embed-widget-symbol-profile.js';
+        predictionScript.async = true;
+        predictionScript.innerHTML = JSON.stringify({
+            "width": "100%", "height": 450, "colorTheme": "dark",
+            "symbol": symbol, "locale": "en"
+        });
+        predictionViewport.appendChild(predictionScript);
+        
+        // Smoothly scroll to analysis if on mobile after clicking
+        if(window.innerWidth < 768) {
+            setTimeout(() => {
+                document.getElementById('analysis-viewport').scrollIntoView({ behavior: 'smooth' });
+            }, 500);
+        }
+    }
+
+    window.onload = changeSymbol;
+</script>
+
+</body>
+</html>

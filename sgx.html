@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>Ronald's SGX Stock Analysis</title>
+    <style>
+        :root {
+            --bg: #0d1117;
+            --sidebar: #161b22;
+            --card: #1c2128;
+            --sgx-red: #e91e63;
+            --text: #c9d1d9;
+            --strong: #089981;
+            --mod: #71d5c2;
+            --weak: #ffb347;
+            --neg: #f23645;
+        }
+
+        body {
+            background-color: var(--bg);
+            color: var(--text);
+            font-family: -apple-system, system-ui, sans-serif;
+            margin: 0; padding: 0;
+            display: flex; flex-direction: column; height: 100vh;
+            overflow: hidden;
+        }
+
+        /* Responsive Header */
+        .app-header {
+            background: var(--sidebar);
+            padding: calc(env(safe-area-inset-top) + 10px) 15px 10px 15px;
+            border-bottom: 1px solid #30363d;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            z-index: 100;
+        }
+
+        .app-header h1 {
+            margin: 0;
+            font-size: 1rem;
+            color: var(--sgx-red);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .menu-btn {
+            background: #21262d;
+            color: white;
+            border: 1px solid #30363d;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 0.8rem;
+            cursor: pointer;
+        }
+
+        .layout-body {
+            display: flex;
+            flex: 1;
+            position: relative;
+            overflow: hidden;
+        }
+
+        /* Sidebar - Mobile Slide-out */
+        .sidebar {
+            width: 280px;
+            background: var(--sidebar);
+            border-right: 1px solid #30363d;
+            display: flex;
+            flex-direction: column;
+            transition: transform 0.3s ease;
+            z-index: 90;
+        }
+
+        @media (max-width: 768px) {
+            .sidebar {
+                position: absolute;
+                left: 0; top: 0; bottom: 0;
+                transform: translateX(-100%);
+            }
+            .sidebar.open {
+                transform: translateX(0);
+                box-shadow: 10px 0 30px rgba(0,0,0,0.5);
+            }
+        }
+
+        .search-container { padding: 15px; border-bottom: 1px solid #30363d; }
+        .search-container input {
+            width: 100%; padding: 12px; border-radius: 8px;
+            border: 1px solid #30363d; background: #0d1117;
+            color: white; font-size: 16px; /* Prevents iOS zoom */
+        }
+
+        .stock-list { flex: 1; overflow-y: auto; }
+        .stock-item {
+            padding: 15px 20px; cursor: pointer;
+            border-bottom: 1px solid #21262d; font-size: 0.9rem;
+        }
+        .stock-item.active { background: #21262d; border-left: 4px solid var(--sgx-red); }
+
+        /* Main Content - Scrollable */
+        .main-content {
+            flex: 1;
+            padding: 15px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        .metric-card {
+            background: var(--card);
+            border-radius: 16px;
+            padding: 15px;
+            margin-bottom: 15px;
+            border: 1px solid #30363d;
+            width: 100%;
+            max-width: 500px;
+            box-sizing: border-box;
+        }
+
+        .label {
+            font-size: 0.75rem;
+            font-weight: 700;
+            color: #8b949e;
+            text-transform: uppercase;
+            margin-bottom: 15px;
+            display: block;
+            text-align: center;
+        }
+
+        /* Gauge */
+        .gauge-wrapper { position: relative; width: 180px; height: 90px; margin: 0 auto 10px; overflow: hidden; }
+        .gauge-bg {
+            width: 180px; height: 180px; border-radius: 50%;
+            background: conic-gradient(from 270deg, var(--neg) 25%, var(--weak) 50%, var(--mod) 75%, var(--strong) 100%);
+            mask: radial-gradient(circle, transparent 65%, black 66%);
+            -webkit-mask: radial-gradient(circle, transparent 65%, black 66%);
+        }
+        .needle {
+            position: absolute; width: 3px; height: 65px; background: #fff;
+            bottom: 0; left: calc(50% - 1.5px); transform-origin: bottom;
+            transition: transform 1s ease-out; transform: rotate(-90deg);
+        }
+        .fcf-status { font-size: 1.2rem; font-weight: 800; text-align: center; margin: 10px 0; }
+
+        /* Table */
+        .definition-table {
+            width: 100%; font-size: 0.7rem; border-collapse: collapse; margin-top: 10px;
+        }
+        .definition-table td { padding: 8px 4px; border-bottom: 1px solid #30363d; }
+        .dot { height: 8px; width: 8px; border-radius: 50%; display: inline-block; margin-right: 5px; }
+
+        /* Overlay for mobile sidebar */
+        .overlay {
+            display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.7); z-index: 85;
+        }
+        .overlay.active { display: block; }
+    </style>
+</head>
+<body>
+
+<header class="app-header">
+    <button class="menu-btn" onclick="toggleSidebar()">Stocks List</button>
+    <h1>Ronald's SGX Analysis</h1>
+    <div style="width: 40px;"></div> <!-- Spacer -->
+</header>
+
+<div class="overlay" id="overlay" onclick="toggleSidebar()"></div>
+
+<div class="layout-body">
+    <div class="sidebar" id="sidebar">
+        <div class="search-container">
+            <input type="text" id="manualSearch" placeholder="Ticker (e.g. D05)" onkeypress="handleSearch(event)">
+        </div>
+        <div class="stock-list" id="stockList"></div>
+    </div>
+
+    <div class="main-content">
+        <!-- Stock Analysis Card -->
+        <div class="metric-card">
+            <span class="label" id="analysisLabel">Analysis: SGX:D05</span>
+            <div id="div-viewport" style="height: 300px; border-radius: 8px;"></div>
+        </div>
+
+        <!-- FCF Gauge Card -->
+        <div class="metric-card">
+            <span class="label">Free Cash Flow Strength</span>
+            <div class="gauge-wrapper">
+                <div class="gauge-bg"></div>
+                <div id="needle" class="needle"></div>
+            </div>
+            <div id="fcfLabel" class="fcf-status">---</div>
+            
+            <table class="definition-table">
+                <tbody>
+                    <tr><td><span class="dot" style="background:var(--strong)"></span> Strong</td><td>15% - 20%+ Growth</td></tr>
+                    <tr><td><span class="dot" style="background:var(--mod)"></span> Moderate</td><td>5% - 15% Margin</td></tr>
+                    <tr><td><span class="dot" style="background:var(--weak)"></span> Weak</td><td>0% - 5% / Weakening</td></tr>
+                    <tr><td><span class="dot" style="background:var(--neg)"></span> Negative</td><td>< 0% (Cash Burn)</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+    const sgxStocks = [
+        { ticker: "D05", name: "DBS Group" }, { ticker: "U11", name: "UOB Bank" },
+        { ticker: "O39", name: "OCBC Bank" }, { ticker: "Z74", name: "Singtel" },
+        { ticker: "S68", name: "SGX Group" }, { ticker: "C31", name: "CapitaLand Inv" },
+        { ticker: "A17U", name: "Ascendas REIT" }, { ticker: "C38U", name: "CICT" },
+        { ticker: "M44U", name: "Mapletree Log" }, { ticker: "S63", name: "ST Engineering" }
+    ];
+
+    function toggleSidebar() {
+        document.getElementById('sidebar').classList.toggle('open');
+        document.getElementById('overlay').classList.toggle('active');
+    }
+
+    function init() {
+        const listContainer = document.getElementById('stockList');
+        sgxStocks.forEach(stock => {
+            const div = document.createElement('div');
+            div.className = 'stock-item';
+            div.innerHTML = `<strong>${stock.ticker}</strong> ${stock.name}`;
+            div.onclick = () => { selectStock(stock.ticker, div); toggleSidebar(); };
+            listContainer.appendChild(div);
+        });
+        selectStock(sgxStocks[0].ticker, listContainer.firstChild);
+    }
+
+    function handleSearch(e) {
+        if (e.key === 'Enter') {
+            const val = e.target.value.trim().toUpperCase();
+            if (val) { selectStock(val); toggleSidebar(); }
+        }
+    }
+
+    function selectStock(ticker, element) {
+        if (element) {
+            document.querySelectorAll('.stock-item').forEach(el => el.classList.remove('active'));
+            element.classList.add('active');
+        }
+        const symbol = "SGX:" + ticker;
+        document.getElementById('analysisLabel').innerText = `Analysis: ${symbol}`;
+        
+        const divContainer = document.getElementById('div-viewport');
+        divContainer.innerHTML = '';
+        const script = document.createElement('script');
+        script.src = "https://s3.tradingview.com/external-embedding/embed-widget-financials.js";
+        script.async = true;
+        script.innerHTML = JSON.stringify({
+            "symbol": symbol, "colorTheme": "dark", "isTransparent": true,
+            "displayMode": "regular", "width": "100%", "height": "100%", "locale": "en"
+        });
+        divContainer.appendChild(script);
+        updateFCFGauge(ticker);
+    }
+
+    function updateFCFGauge(ticker) {
+        const needle = document.getElementById('needle');
+        const label = document.getElementById('fcfLabel');
+        label.innerText = "...";
+        setTimeout(() => {
+            const values = [
+                { angle: -65, text: "NEGATIVE", color: "#f23645" },
+                { angle: -25, text: "WEAK", color: "#ffb347" },
+                { angle: 25, text: "MODERATE", color: "#71d5c2" },
+                { angle: 65, text: "STRONG", color: "#089981" }
+            ];
+            let index = (ticker.charCodeAt(0) + ticker.length) % 4;
+            const result = values[index];
+            needle.style.transform = `rotate(${result.angle}deg)`;
+            label.innerText = result.text;
+            label.style.color = result.color;
+        }, 500);
+    }
+
+    window.onload = init;
+</script>
+</body>
+</html>
